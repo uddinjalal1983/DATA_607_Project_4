@@ -1,0 +1,320 @@
+---
+title: "DATA_607_Project_4"
+author: "Md Jalal Uddin"
+date: "November 15, 2016"
+output: html_document
+---
+
+```{r}
+#Create function to download a package
+#Sources:http://stackoverflow.com/questions/9341635/check-for-installed-packages-before-running-install-packages
+
+packages <- function(x){
+  x <- as.character(match.call()[[2]])
+  if (!require(x,character.only=TRUE)){
+    install.packages(pkgs=x,repos="http://cran.r-project.org")
+    require(x,character.only=TRUE)
+  }
+}
+
+#install required packages by using the created function. 
+
+packages("rmongodb")
+packages("rjson")
+packages("mongolite")
+packages("RMongo")
+packages("RMySQL")
+packages("DBI")
+
+```
+
+```{r}
+#loading the packages
+
+library(RMySQL)
+library(RMongo)
+library(RJSONIO)
+library(rjson)
+library(RCurl)
+library(plyr)
+library(knitr)
+library(mongolite)
+library(rmongodb)
+
+```
+
+Now, connecting to the MySQL server using the sqlconnect function. MySQL is already running in the machine.
+
+```{r}
+driver <- dbDriver("MySQL")
+sqlconnect <- dbConnect(driver, user="root", password = "abcd1234", dbname = "flights", host = "localhost")
+
+```
+
+```{r}
+#Checking how many tables are there in MySQL database
+dbListTables(sqlconnect)
+
+```
+
+NOw, I will run some queries to see the number of row in flights, airlines, planes, weather, and airports tables from flights database. 
+
+```{r}
+query <- "select * from flights;"
+flights <- dbGetQuery(sqlconnect, query)
+head(flights, 10) #show first 10 rows of flights table
+
+```
+
+```{r}
+nrow(flights) #show total number of rows of flights table
+
+```
+
+```{r}
+query <- "select * from airlines;"
+airlines <- dbGetQuery(sqlconnect, query)
+head(airlines, 10) #show first 10 rows of airlines table
+
+```
+
+```{r}
+nrow(airlines) #show total number of rows of airlines table
+
+```
+
+```{r}
+query <- "select * from planes;"
+planes <- dbGetQuery(sqlconnect, query)
+head(planes, 10) #show first 10 rows of planes table
+
+```
+
+```{r}
+nrow(planes) #show total number of rows of planes table
+
+```
+
+```{r}
+query <- "select * from airports;"
+airports <- dbGetQuery(sqlconnect, query)
+head(airports, 10) #show first 10 rows of airports table
+
+```
+
+```{r}
+nrow(airports)  #show total number of rows of airports table
+
+```
+
+
+```{r}
+query <- "select * from weather;"
+weather <- dbGetQuery(sqlconnect, query)
+head(weather, 10) #show first 10 rows of weather table
+
+```
+
+```{r}
+nrow(weather) #show total number of rows of weather table
+
+```
+
+Now, disconnecting from MySQL server
+
+```{r}
+dbDisconnect(sqlconnect)
+
+dbUnloadDriver(driver)
+
+```
+
+Now, by using devtools packages installing rmongodb packages 
+
+```{r}
+#Sources: https://www.r-project.org/nosvn/pandoc/rmongodb.html
+
+library(devtools)
+install_github(repo = "mongosoup/rmongodb")
+library(rmongodb)
+
+```
+
+Now, connect and load to Mongo db by using mongo.create() function. 
+
+```{r}
+mongo <- mongo.create()
+mongo.is.connected(mongo)
+
+
+```
+
+```{r}
+#Checking how many database is there. 
+mongo.get.databases(mongo)
+
+```
+
+We can see there is two data base created in Mongodb-one is "allflights" and the other one is "mflights". I created "allflights" manually by using Command Promt (CMD). I have imported all five tables's csv file from the machine to Mongodb. I have attached the command and the output result in the github and attached that in project 4. And I created  "mflights" by using r command in rmarkdown and saved all of the five files. 
+I have showed here the step by step process for both two ways of creating the two database. 
+
+First, creating allflights database manually and renamed the tables using the following command. 
+
+```{r}
+mon_airlines <- "allflights.airlines"
+mon_airports <- "allflights.airports"
+mon_weather <- "allflights.weather"
+mon_planes <- "allflights.planes"
+mon_flights<-"allflights.flights"
+
+```
+
+Now, Checking the number of rows for all of the five tables.
+
+```{r}
+mongo.count(mongo, mon_planes)
+mongo.count(mongo, mon_airports)
+mongo.count(mongo, mon_airlines)
+mongo.count(mongo, mon_weather)
+mongo.count(mongo, mon_flights)
+
+```
+
+Now, comparing the the total number of rows of the each of the five tables in Mongodb with total number of rows of each of the five tables in MySQL server. 
+
+```{r}
+
+mongo.count(mongo, mon_planes) == nrow(planes)
+mongo.count(mongo, mon_airports) == nrow(airports)
+mongo.count(mongo, mon_airlines)  == nrow(airlines)
+mongo.count(mongo, mon_flights)  == nrow(flights)
+mongo.count(mongo, mon_weather)  == nrow(weather)
+
+#We can see that all of them are true. 
+
+```
+
+Now, I will export the five tables into Mongodb by using following r command. 
+Convert all four tables from flights database to JSON then to Mongodb BSON files. And the other flights table I exported manually since it takes too much time to export. 
+
+```{r}
+b_airports <- lapply(split(airports, 1:nrow(airports)), function(x) mongo.bson.from.JSON(toJSON(x)))
+
+b_weather <- lapply(split(weather, 1:nrow(weather)), function(x) mongo.bson.from.JSON(toJSON(x)))
+
+b_airlines <- lapply(split(airlines, 1:nrow(airlines)), function(x) mongo.bson.from.JSON(toJSON(x)))
+
+b_planes <- lapply(split(planes, 1:nrow(planes)), function(x) mongo.bson.from.JSON(toJSON(x)))
+
+```
+
+
+```{r}
+# renamed the files into r markdown
+
+m_airlines <- "mflights.airlines"
+m_airports <- "mflights.airports"
+m_weather <- "mflights.weather"
+m_planes <- "mflights.planes"
+m_flights<-"mflights.flights"
+
+```
+
+```{r}
+#Loading airlines table records from BSON to MongoDB 
+if(mongo.count(mongo,m_airlines) != 0){
+  mongo.remove(mongo, m_airlines, criteria = mongo.bson.empty()) 
+}
+
+```
+
+```{r}
+#Checking to see the records were inserted correctly or not
+mongo.insert.batch(mongo, m_airlines, b_airlines)
+
+```
+
+```{r}
+#Loading airports table records from BSON to MongoDB 
+
+if(mongo.count(mongo,m_airports) != 0){
+  mongo.remove(mongo, m_airports, criteria = mongo.bson.empty()) 
+}
+
+```
+
+```{r}
+#Checking to see the records were inserted correctly or not
+mongo.insert.batch(mongo, m_airports, b_airports)
+
+```
+
+```{r}
+#Loading weather table records from BSON to MongoDB 
+
+if(mongo.count(mongo,m_weather) != 0){
+  mongo.remove(mongo, m_weather, criteria = mongo.bson.empty()) 
+}
+
+```
+
+```{r}
+#Checking to see the records were inserted correctly or not
+mongo.insert.batch(mongo, m_weather, b_weather)
+
+```
+
+```{r}
+#Loading planes table records from BSON to MongoDB 
+
+if(mongo.count(mongo,m_planes) != 0){
+  mongo.remove(mongo, m_planes, criteria = mongo.bson.empty()) 
+}
+
+```
+
+```{r}
+#Checking to see the records were inserted correctly or not
+mongo.insert.batch(mongo, m_planes, b_planes)
+
+```
+
+Couting the row number for all the five tables exported into Mongodb
+
+```{r}
+mongo.count(mongo, m_planes)
+mongo.count(mongo, m_airports)
+mongo.count(mongo, m_airlines)
+mongo.count(mongo, m_weather)
+mongo.count(mongo, m_flights)
+
+```
+
+Now, comparing the the total number of rows of the each of the five tables in Mongodb with total number of rows of each of the five tables in MySQL server.
+
+```{r}
+
+mongo.count(mongo, m_planes) == nrow(planes)
+mongo.count(mongo, m_airports) == nrow(airports)
+mongo.count(mongo, m_airlines)  == nrow(airlines)
+mongo.count(mongo, m_weather)  == nrow(weather)
+mongo.count(mongo, m_flights)  == nrow(flights)
+
+```
+
+Finally, we I would say the row count have been matched for both mongodb and MySQL data. 
+
+Difference between SQL and NoSQL:
+
+1.SQL databases are relational databases such as Microsoft SQL or MySQl while NoSQL databases are non relational or graphical or distributed datases.
+
+2.SQL databases are table based databases whereas NoSQL databases are document based databases.  
+3.SQL databases have predefined schema whereas NoSQL databases have dynamic schema for unstructured data.
+
+4. SQL databases uses SQL ( structured query language ) for defining and manipulating the data, which is very powerful. In NoSQL database, queries are focused on collection of documents.
+
+5. SQL databases are the preferred databases for applications with complex queries while NoSQL databases are the preferred databases for big data.
+
+6. SQL databases are better for applications with heavy transaction processing because it provides better data integrity than NoSQL databases.
+
+Sources: http://www.thegeekstuff.com/2014/01/sql-vs-nosql-db/?utm_source=tuicool
